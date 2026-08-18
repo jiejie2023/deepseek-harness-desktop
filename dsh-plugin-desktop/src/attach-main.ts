@@ -9,9 +9,25 @@
  */
 
 import { app, BrowserWindow, dialog, shell } from 'electron'
+import { fileURLToPath } from 'node:url'
 
 /** Default target for `--attach` when no URL is provided. */
 export const DEFAULT_ATTACH_URL = 'http://127.0.0.1:3080'
+
+/**
+ * Resolve the attach window icon generated from the official DeepSeek Harness
+ * whale favicon (build/dsh-whale.svg). Windows uses a multi-size ICO; other
+ * platforms use the 256px PNG.
+ * @returns an absolute icon path, or undefined when the asset is missing.
+ */
+export function attachWindowIconPath(): string | undefined {
+  try {
+    const name = process.platform === 'win32' ? 'attach-icon.ico' : 'attach-icon.png'
+    return fileURLToPath(new URL(`../build/${name}`, import.meta.url))
+  } catch {
+    return undefined
+  }
+}
 
 /**
  * Parse `--attach-url=<value>` from the Electron main process argv.
@@ -37,6 +53,7 @@ let mainWindow: BrowserWindow | undefined
 /** Create the attach window and keep navigation inside the attached origin. */
 function createWindow(targetUrl: string): void {
   const origin = new URL(targetUrl).origin
+  const icon = attachWindowIconPath()
   const window = new BrowserWindow({
     title: 'DSH Desktop (attach)',
     width: 1440,
@@ -45,6 +62,7 @@ function createWindow(targetUrl: string): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    ...(icon === undefined ? {} : { icon }),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -91,6 +109,9 @@ function createWindow(targetUrl: string): void {
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('ai.deepseek.dsh.desktop')
+  }
   app.on('second-instance', () => {
     if (mainWindow === undefined) return
     if (mainWindow.isMinimized()) mainWindow.restore()
