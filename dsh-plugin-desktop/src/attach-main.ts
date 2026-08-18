@@ -109,9 +109,6 @@ function createWindow(targetUrl: string): void {
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  if (process.platform === 'win32') {
-    app.setAppUserModelId('ai.deepseek.dsh.desktop')
-  }
   app.on('second-instance', () => {
     if (mainWindow === undefined) return
     if (mainWindow.isMinimized()) mainWindow.restore()
