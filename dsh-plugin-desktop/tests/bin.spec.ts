@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from 'vitest'
 import AdmZip from 'adm-zip'
 import {
   defaultDesktopUserDataDirectory,
+  DEFAULT_ATTACH_URL,
   DESKTOP_CLI_HELP,
+  parseAttachUrl,
   parseDesktopCli,
   runDesktopCli,
 } from '../src/bin.ts'
@@ -29,6 +31,25 @@ describe('desktop npm launcher', () => {
 
   it('rejects arguments that belong to the profile app', () => {
     expect(() => parseDesktopCli(['--port', '3000'])).toThrow('unknown arguments')
+  })
+
+  it('parses --attach in every accepted form', () => {
+    expect(parseDesktopCli(['--attach'])).toBe('attach')
+    expect(parseDesktopCli(['--attach', 'http://127.0.0.1:9000'])).toBe('attach')
+    expect(parseDesktopCli(['--attach=http://127.0.0.1:9000'])).toBe('attach')
+  })
+
+  it('resolves the --attach target URL', () => {
+    expect(parseAttachUrl(['--attach'])).toBeUndefined()
+    expect(parseAttachUrl(['--attach', 'http://127.0.0.1:9000'])).toBe('http://127.0.0.1:9000')
+    expect(parseAttachUrl(['--attach=http://127.0.0.1:9000'])).toBe('http://127.0.0.1:9000')
+    expect(parseAttachUrl(['--attach', '--export-diagnostics'])).toBeUndefined()
+    expect(parseAttachUrl(['--export-diagnostics'])).toBeUndefined()
+    expect(() => parseAttachUrl(['--attach='])).toThrow('non-empty URL')
+  })
+
+  it('defaults --attach to the local dsh web port', () => {
+    expect(DEFAULT_ATTACH_URL).toBe('http://127.0.0.1:3080')
   })
 
   it('names the installed product and selected profile behavior', () => {

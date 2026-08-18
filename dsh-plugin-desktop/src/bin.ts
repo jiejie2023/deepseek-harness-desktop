@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { exportDesktopDiagnostics } from './diagnostic-export.ts'
 
 /** Parsed launcher action. */
-export type DesktopCliAction = 'export-diagnostics' | 'help' | 'version' | 'launch'
+export type DesktopCliAction = 'export-diagnostics' | 'help' | 'version' | 'launch' | 'attach'
 
 /** Human-readable launcher help. */
 export const DESKTOP_CLI_HELP = `Usage: dsh-plugin-desktop [options]
@@ -16,10 +16,15 @@ export const DESKTOP_CLI_HELP = `Usage: dsh-plugin-desktop [options]
 Launch DSH Desktop with the selected Web-capable profile.
 
 Options:
+  --attach [url]        open a thin native window attached to an externally
+                        running DSH Web instance (default http://127.0.0.1:3080)
   --export-diagnostics  export logs and crash evidence without launching the app
   -h, --help            display help
   -V, --version         display version
 `
+
+/** Default --attach target, mirrored by src/attach-main.ts. */
+export const DEFAULT_ATTACH_URL = 'http://127.0.0.1:3080'
 
 /**
  * Parse the intentionally small npm-launcher argument set.
@@ -28,10 +33,34 @@ Options:
  */
 export function parseDesktopCli(argv: readonly string[]): DesktopCliAction {
   if (argv.length === 0) return 'launch'
+  if (argv[0] === '--attach' || argv[0]?.startsWith('--attach=')) return 'attach'
   if (argv.length === 1 && argv[0] === '--export-diagnostics') return 'export-diagnostics'
   if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) return 'help'
   if (argv.length === 1 && (argv[0] === '--version' || argv[0] === '-V')) return 'version'
   throw new Error(`unknown arguments: ${argv.join(' ')}`)
+}
+
+/**
+ * Extract the --attach target URL from `--attach`, `--attach <url>` or
+ * `--attach=<url>`. Returns undefined when the default URL should be used.
+ * @param argv - arguments after the executable and script path.
+ * @returns the requested target URL, if any.
+ */
+export function parseAttachUrl(argv: readonly string[]): string | undefined {
+  for (let index = 0; index < argv.length; index++) {
+    const argument = argv[index] ?? ''
+    if (argument === '--attach') {
+      const next = argv[index + 1]
+      if (next !== undefined && !next.startsWith('-')) return next
+      return undefined
+    }
+    if (argument.startsWith('--attach=')) {
+      const value = argument.slice('--attach='.length)
+      if (value.length === 0) throw new Error('--attach requires a non-empty URL')
+      return value
+    }
+  }
+  return undefined
 }
 
 /** Read the package version without importing Electron. */
@@ -66,7 +95,7 @@ export interface DesktopCliOptions {
 }
 
 /** Launch Electron and mirror its terminal exit status. */
-async function launchElectron(): Promise<number> {
+async function launchElectron(mainScript = 'main.js', extraArgs: readonly string[] = []): Promise<number> {
   let electronPath: string
   try {
     const imported = await import('electron') as { default?: unknown }
@@ -86,9 +115,9 @@ async function launchElectron(): Promise<number> {
     )
     return 1
   }
-  const mainPath = fileURLToPath(new URL('./main.js', import.meta.url))
+  const mainPath = fileURLToPath(new URL(mainScript, import.meta.url))
   return new Promise<number>((resolveExit, reject) => {
-    const child = spawn(electronPath, [mainPath], { stdio: 'inherit', env: process.env })
+    const child = spawn(electronPath, [mainPath, ...extraArgs], { stdio: 'inherit', env: process.env })
     child.once('error', reject)
     child.once('exit', (code, signal) => {
       resolveExit(code ?? (signal === null ? 1 : 128))
@@ -128,6 +157,10 @@ export async function runDesktopCli(
     )
     process.stdout.write(`${path}\n`)
     return 0
+  }
+  if (action === 'attach') {
+    const url = parseAttachUrl(argv) ?? DEFAULT_ATTACH_URL
+    return launchElectron('attach-main.js', [`--attach-url=${url}`])
   }
   return launchElectron()
 }
