@@ -153,11 +153,17 @@ instance, without booting a bundled runtime or touching any profile. The
 Harness process stays entirely outside Electron; navigation is confined to the
 attached origin, and closing the window quits the app.
 
+When the target is not reachable, the attach window automatically starts the
+local `dsh web` (hidden, no console window) and waits for the port before
+opening. Disable this with `--no-auto-start`, or point at another instance:
+
 ```sh
-dsh web                     # in one terminal, the local runtime
-dsh-desktop --attach        # in another, the native window
+dsh web                     # optional; the attach window can start it for you
+dsh-desktop --attach        # opens the window, auto-starting dsh web if needed
 # or point at a different instance:
 dsh-desktop --attach http://127.0.0.1:9000
+# or start dsh web with a custom command:
+dsh-desktop --attach --attach-dsh-command "dsh web --profile myprofile"
 ```
 
 The default target is `http://127.0.0.1:3080`. This mode is a minimal shell: no
