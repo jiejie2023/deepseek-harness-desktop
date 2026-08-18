@@ -1,0 +1,5 @@
+# Opens the DSH Desktop attach window when this profile's Web surface is up.
+# The launcher command is configured per-profile in the user patch layer.
+- insert:
+    - id: desktop-attach
+      name: dsh-desktop-attach
